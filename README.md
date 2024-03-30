@@ -3,6 +3,8 @@
 
 ## Overview
 
+**Disclaimer: This repository is for educational purpose.**
+
 The idea is based on the standard library encoding/hex, and I've modified it to support more features as the challenge suggested. See `dumper.Write` function in `xhex.go`.
 
 ## Installation
