@@ -51,9 +51,3 @@ func read(filename string) {
 		return
 	}
 }
-
-// step 1:
-
-// do the group feature
-
-// decode: just strip head and tail, then drop space, then for then convert
