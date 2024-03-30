@@ -136,6 +136,9 @@ func (h *dumper) Write(data []byte) (n int, err error) {
 		if h.used == 0 {
 			// At the beginning of a line we print the current
 			// offset in hex.
+
+			// San: this part the author convert `h.n` to binary digits and store in the first four elements of `buf`,
+			// then convert each of them to hexcimal and store in the rest elements of `buf`
 			h.buf[0] = byte(h.n >> 24)
 			h.buf[1] = byte(h.n >> 16)
 			h.buf[2] = byte(h.n >> 8)
