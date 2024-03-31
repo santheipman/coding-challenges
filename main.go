@@ -22,11 +22,26 @@ func read(filename string) {
 
 	defer f.Close()
 
+	config := &xhex.DumperConfig{
+		Columns:      16,
+		GroupSize:    4,
+		LittleEndian: false,
+	}
+	seek := 1
+	length := 19
+	length = -1
+
 	reader := bufio.NewReader(f)
+	_, err = reader.Discard(seek - 1)
+	if err != nil {
+		panic(err)
+	}
 	buf := make([]byte, 256)
 
+	var totalBytes int
+
 	for {
-		_, err := reader.Read(buf)
+		numBytes, err := reader.Read(buf)
 
 		if err != nil {
 			if err != io.EOF {
@@ -35,19 +50,23 @@ func read(filename string) {
 			break
 		}
 
-		config := &xhex.DumperConfig{
-			Columns:      8,
-			GroupSize:    4,
-			LittleEndian: true,
-			Seek:         0,
-			Length:       0,
+		l := numBytes
+
+		if length != -1 && totalBytes+numBytes > length {
+			l = length - totalBytes
 		}
 
-		dump, err := xhex.Dump(buf, config)
+		config.Offset = totalBytes + (seek - 1)
+
+		dump, err := xhex.Dump(buf[:l], config)
 		if err != nil {
 			panic(err)
 		}
 		fmt.Printf("%s", dump)
-		return
+
+		totalBytes += l
+		if length != -1 && totalBytes >= length {
+			break
+		}
 	}
 }

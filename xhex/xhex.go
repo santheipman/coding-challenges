@@ -1,6 +1,7 @@
 package xhex
 
 import (
+	"encoding/hex"
 	"errors"
 	"io"
 	"strings"
@@ -30,9 +31,8 @@ const (
 type DumperConfig struct {
 	GroupSize    uint
 	LittleEndian bool
-	Seek         int
-	Length       int
 	Columns      uint
+	Offset       int
 }
 
 // Dump returns a string that contains a hex dump of the given data. The format
@@ -46,9 +46,10 @@ func Dump(data []byte, config *DumperConfig) (string, error) {
 	// Dumper will write 78 bytes per complete 16 byte chunk, and at least
 	// 64 bytes for whatever remains. Round the allocation up, since only a
 	// maximum of 15 bytes will be wasted.
-	buf.Grow((1 + ((len(data) - 1) / 16)) * 78)
+	//buf.Grow((1 + ((len(data) - 1) / 16)) * 78)
+	buf.Grow(2000) // TODO @San
 
-	dumper, err := Dumper(&buf, config)
+	dumper, err := NewDumper(&buf, config)
 	if err != nil {
 		return "", err
 	}
@@ -57,8 +58,8 @@ func Dump(data []byte, config *DumperConfig) (string, error) {
 	return buf.String(), nil
 }
 
-// Dumper returns a WriteCloser that writes a hex dump of all written data to w
-func Dumper(w io.Writer, config *DumperConfig) (io.WriteCloser, error) {
+// NewDumper returns a Dumper that writes a hex dump of all written data to w
+func NewDumper(w io.Writer, config *DumperConfig) (*Dumper, error) {
 	if config != nil {
 		// TODO validate config:
 		// - groupSize must be a power of 2
@@ -71,27 +72,24 @@ func Dumper(w io.Writer, config *DumperConfig) (io.WriteCloser, error) {
 			return nil, errors.New("columns must be larger than or equal to groupSize")
 		}
 
-		return &dumper{
+		return &Dumper{
 			w:            w,
+			n:            uint(config.Offset),
 			groupSize:    config.GroupSize,
 			littleEndian: config.LittleEndian,
-			seek:         config.Seek,
-			length:       config.Length,
 			columns:      config.Columns,
 		}, nil
 	} else {
-		return &dumper{
+		return &Dumper{
 			w:            w,
 			groupSize:    1,
 			littleEndian: false,
-			seek:         -1,
-			length:       -1,
 			columns:      16,
 		}, nil
 	}
 }
 
-type dumper struct {
+type Dumper struct {
 	w          io.Writer
 	rightChars [19]byte
 	buf        [14]byte
@@ -103,8 +101,6 @@ type dumper struct {
 
 	groupSize    uint
 	littleEndian bool // true: littleEndian, false: bigEndian
-	seek         int  // -> should handle at bufio?
-	length       int  // -> should handle at bufio?
 	columns      uint
 }
 
@@ -115,19 +111,19 @@ func toChar(b byte) byte {
 	return b
 }
 
-func (h *dumper) Write(data []byte) (n int, err error) {
+func (h *Dumper) Write(data []byte) (n int, err error) {
 	if h.closed {
-		return 0, errors.New("encoding/hex: dumper closed")
+		return 0, errors.New("encoding/hex: Dumper closed")
 	}
 
 	h.rightChars[0] = ' '
 
-	l := 2 * h.groupSize
+	l := 2*h.groupSize + 1
 	// groupSize=1 -> add space after 0,1,2,3,4
 	// groupSize=2 -> add space after 1,3,5,...15
 	// groupSize=4 -> add space after 3,7,10,...15
 	// groupSize=8 -> add space after 7,15
-	h.groupBuf[l] = ' '
+	h.groupBuf[l-1] = ' '
 
 	// Output lines look like:
 	// 00000010  2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d  ./0123456789:;<=
@@ -143,7 +139,7 @@ func (h *dumper) Write(data []byte) (n int, err error) {
 			h.buf[1] = byte(h.n >> 16)
 			h.buf[2] = byte(h.n >> 8)
 			h.buf[3] = byte(h.n)
-			Encode(h.buf[4:], h.buf[:4])
+			hex.Encode(h.buf[4:], h.buf[:4])
 			h.buf[12] = ' '
 			h.buf[13] = ' '
 			_, err = h.w.Write(h.buf[4:])
@@ -157,23 +153,34 @@ func (h *dumper) Write(data []byte) (n int, err error) {
 		} else {
 			j = 2 * (h.used % h.groupSize)
 		}
-		Encode(h.groupBuf[j:], data[i:i+1])
+		hex.Encode(h.groupBuf[j:], data[i:i+1])
 
 		n++
-		h.rightChars[h.used+1] = toChar(data[i])
 		h.used++
+		h.rightChars[h.used] = toChar(data[i])
 		h.n++
 
-		if h.used%h.groupSize == 0 {
-			_, err = h.w.Write(h.groupBuf[:l+1])
+		if i == len(data)-1 { // fill empty space (if needed) for the last group
+			if h.littleEndian {
+				for k := uint(0); k < j; k++ {
+					h.groupBuf[k] = ' '
+				}
+			} else {
+				for k := uint(len(h.groupBuf)) - 1; k > j+1; k-- {
+					h.groupBuf[k] = ' '
+				}
+			}
+		}
+
+		if h.used%h.groupSize == 0 || i == len(data)-1 {
+			_, err = h.w.Write(h.groupBuf[:l])
 			if err != nil {
 				return
 			}
 		}
 
 		if h.used == h.columns {
-			h.rightChars[h.columns+1] = ' '
-			h.rightChars[h.columns+2] = '\n'
+			h.rightChars[h.columns+1] = '\n'
 			_, err = h.w.Write(h.rightChars[:])
 			if err != nil {
 				return
@@ -185,48 +192,33 @@ func (h *dumper) Write(data []byte) (n int, err error) {
 	return
 }
 
-func (h *dumper) Close() (err error) {
-	//// See the comments in Write() for the details of this format.
-	//if h.closed {
-	//	return
-	//}
-	//h.closed = true
-	//if h.used == 0 {
-	//	return
-	//}
-	//h.buf[0] = ' '
-	//h.buf[1] = ' '
-	//h.buf[2] = ' '
-	//h.buf[3] = ' '
-	//h.buf[4] = '|'
-	//nBytes := h.used
-	//for h.used < 16 {
-	//	l := 3
-	//	if h.used == 15 {
-	//		l = 4
-	//	}
-	//	_, err = h.w.Write(h.buf[:l])
-	//	if err != nil {
-	//		return
-	//	}
-	//	h.used++
-	//}
-	//h.rightChars[nBytes] = '|'
-	//h.rightChars[nBytes+1] = '\n'
-	//_, err = h.w.Write(h.rightChars[:nBytes+2])
-	return
-}
-
-// Encode encodes src into EncodedLen(len(src))
-// bytes of dst. As a convenience, it returns the number
-// of bytes written to dst, but this value is always EncodedLen(len(src)).
-// Encode implements hexadecimal encoding.
-func Encode(dst, src []byte) int {
-	j := 0
-	for _, v := range src {
-		dst[j] = hextable[v>>4]
-		dst[j+1] = hextable[v&0x0f]
-		j += 2
+// Close pads empty space for the last line in case it has less than
+// `columns` bytes. See the comments in write() for the details of this format.
+func (h *Dumper) Close() (err error) {
+	if h.closed {
+		return
 	}
-	return len(src) * 2
+	h.closed = true
+	if h.used == 0 {
+		return
+	}
+
+	pads := h.columns - h.used
+	groups := pads / h.groupSize
+	l := 2*h.groupSize + 1
+
+	for i := uint(0); i < l; i++ {
+		h.groupBuf[i] = ' '
+	}
+
+	for i := uint(0); i < groups; i++ {
+		_, err = h.w.Write(h.groupBuf[:l])
+		if err != nil {
+			return
+		}
+	}
+
+	h.rightChars[h.used+1] = '\n'
+	_, err = h.w.Write(h.rightChars[:h.used+2])
+	return
 }
