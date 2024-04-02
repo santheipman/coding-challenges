@@ -1,65 +1,22 @@
-package main
+package goxxd
 
 import (
 	"bufio"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"github.com/alecthomas/kingpin/v2"
-	"goxxd/xhex"
 	"io"
-	"os"
 	"strings"
 )
 
-var (
-	littleEndian = kingpin.Flag("little-endian", "Switch to little-endian hex dump.").Default("false").Short('e').Bool()
-	group        = kingpin.Flag("group", "Group hex values.").Default("1").Short('g').Int()
-	columns      = kingpin.Flag("columns", "Specify number of hex values per line. `c` must be between 1 and 16").Default("16").Short('c').Int()
-	length       = kingpin.Flag("length", "Specify the maximum number of hex values to be printed. Print all values by default.").Default("-1").Short('l').Int()
-	seek         = kingpin.Flag("seek", "Print hex values start from `seek`.").Default("1").Short('s').Int()
-	revert       = kingpin.Flag("revert", "Revert a hex dump back to a binary file.").Default("false").Short('r').Bool()
-
-	filename = kingpin.Arg("filename", "filename").Required().String()
-)
-
-func main() {
-	kingpin.Version("0.0.1")
-	kingpin.Parse()
-
-	if *revert {
-		text, err := convertBack(*filename)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Print(text)
-		return
-	}
-
-	hexdump, err := dump(*filename, *columns, *group, *seek, *length, *littleEndian)
-	if err != nil {
-		fmt.Print(err)
-		return
-	}
-	fmt.Print(hexdump)
-}
-
-func dump(filename string, columns, group, seek, length int, littleEndian bool) (string, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return "", err
-	}
-
-	defer f.Close()
-
-	config := &xhex.DumperConfig{
+func Dump(textReader io.Reader, columns, group, seek, length int, littleEndian bool) (string, error) {
+	config := &DumperConfig{
 		Columns:      uint(columns),
 		GroupSize:    uint(group),
 		LittleEndian: littleEndian,
 	}
 
-	reader := bufio.NewReader(f)
-	_, err = reader.Discard(seek - 1)
+	reader := bufio.NewReader(textReader)
+	_, err := reader.Discard(seek)
 	if err != nil {
 		return "", err
 	}
@@ -85,9 +42,9 @@ func dump(filename string, columns, group, seek, length int, littleEndian bool) 
 			l = length - totalBytes
 		}
 
-		config.Offset = totalBytes + (seek - 1)
+		config.Offset = totalBytes + seek
 
-		dump, err := xhex.Dump(buf[:l], config)
+		dump, err := dump(buf[:l], config)
 		if err != nil {
 			return "", err
 		}
@@ -106,14 +63,8 @@ func dump(filename string, columns, group, seek, length int, littleEndian bool) 
 	return out.String(), nil
 }
 
-func convertBack(hexdumpFilename string) (string, error) {
-	f, err := os.Open(hexdumpFilename)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	reader := bufio.NewReader(f)
+func RevertDump(dumpReader io.Reader) (string, error) {
+	reader := bufio.NewReader(dumpReader)
 
 	var out strings.Builder
 	var buf []byte
@@ -121,6 +72,7 @@ func convertBack(hexdumpFilename string) (string, error) {
 	var dst []byte
 	for {
 		if buf == nil {
+			var err error
 			buf, err = reader.ReadSlice('\n')
 			if err != nil {
 				return "", err
@@ -129,7 +81,7 @@ func convertBack(hexdumpFilename string) (string, error) {
 		} else {
 			// every line has the same length except the last one,
 			// so we can reuse `buf`
-			_, err = reader.Read(buf)
+			_, err := reader.Read(buf)
 			if err != nil {
 				if err != io.EOF {
 					return "", err
@@ -138,8 +90,8 @@ func convertBack(hexdumpFilename string) (string, error) {
 			}
 		}
 
-		// buf="00000000  46696c65 20312063 6f6e7465 6e747373  File 1 contentss"
-		// -> src="46696c65203120636f6e74656e747373"
+		// buf="00000000  46696c65 20322063 6f6e7465 6e74730a  File 2 contents."
+		// -> src="46696c65203220636f6e74656e74730a"
 		var started bool
 		var i, j int
 		for {
@@ -165,8 +117,8 @@ func convertBack(hexdumpFilename string) (string, error) {
 			i++
 		}
 
-		// src="46696c65203120636f6e74656e747373"
-		// -> dst="File 1 contentss"
+		// src="46696c65203220636f6e74656e74730a"
+		// -> dst="File 2 contents."
 		if dst == nil {
 			dst = make([]byte, hex.DecodedLen(len(src[:j])))
 		}

@@ -20,7 +20,7 @@ The idea is based on the standard library `encoding/hex`, and I've modified it t
 
 Build the tool:
 ```bash
-go build goxxd.go
+go build -o goxxd cmd/goxxd/main.go
 ```
 
 List the run options:
