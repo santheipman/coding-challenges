@@ -9,7 +9,7 @@ The idea is based on the standard library `encoding/hex`, and I've modified it t
 
 ## Features
 
-- Print the hexdump of a binary file. Some support options are:
+- Print the hexdump of a binary file. Some supported options are:
   - maximum length
   - little-endian byte order
   - number of hex values per line
