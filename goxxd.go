@@ -63,8 +63,8 @@ func Dump(textReader io.Reader, columns, group, seek, length int, littleEndian b
 	return out.String(), nil
 }
 
-func RevertDump(dumpReader io.Reader) (string, error) {
-	reader := bufio.NewReader(dumpReader)
+func RevertDump(r io.Reader) (string, error) {
+	reader := bufio.NewReader(r)
 
 	var out strings.Builder
 	var buf []byte
@@ -90,7 +90,7 @@ func RevertDump(dumpReader io.Reader) (string, error) {
 			}
 		}
 
-		// buf="00000000  46696c65 20322063 6f6e7465 6e74730a  File 2 contents."
+		// buf="00000000: 46696c65 20322063 6f6e7465 6e74730a  File 2 contents."
 		// -> src="46696c65203220636f6e74656e74730a"
 		var started bool
 		var i, j int
@@ -100,10 +100,10 @@ func RevertDump(dumpReader io.Reader) (string, error) {
 			}
 
 			if buf[i] == ' ' && buf[i+1] == ' ' {
-				if started {
-					break
-				}
+				break
+			}
 
+			if buf[i] == ':' && buf[i+1] == ' ' {
 				i += 2
 				started = true
 				continue

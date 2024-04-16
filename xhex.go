@@ -86,18 +86,29 @@ func NewDumper(w io.Writer, config *DumperConfig) (*Dumper, error) {
 }
 
 type Dumper struct {
-	w          io.Writer
-	rightChars [19]byte
-	buf        [14]byte
-	groupBuf   [33]byte
+	w io.Writer
+	// rightChars has this format <space><16_characters><new_line>
+	rightChars [18]byte
+	// buf is used for write offset and group data.
+	// For offset, we utilize first 4 bytes in buf for hex conversion and store the result in the buf from 4th->14th byte.
+	// Therefore, the maximum bytes needed is 14.
+	// For group data, we need at most 32 bytes to store the largest group size allowed (16) plus one space at the end. So the
+	// maximum bytes in this case is 33.
+	// Overall, we choose 33 is the size of the byte buffer.
+	buf [33]byte
 
-	used   uint // number of bytes in the current line
-	n      uint // number of bytes, total
+	// used is number of bytes in the current line
+	used uint
+	// n is number of bytes, total
+	n      uint
 	closed bool
 
-	groupSize    uint // number of bytes in a group
-	littleEndian bool // true: littleEndian, false: bigEndian
-	columns      uint // number of bytes per line
+	// groupSize is number of bytes in a group
+	groupSize uint
+	// littleEndian true: littleEndian, false: bigEndian
+	littleEndian bool
+	// columns is number of bytes per line
+	columns uint
 }
 
 func toChar(b byte) byte {
@@ -115,41 +126,34 @@ func (h *Dumper) Write(data []byte) (n int, err error) {
 	h.rightChars[0] = ' '
 
 	l := 2*h.groupSize + 1
-	// groupSize=1 -> add space after 0,1,2,3,4
-	// groupSize=2 -> add space after 1,3,5,...15
-	// groupSize=4 -> add space after 3,7,10,...15
-	// groupSize=8 -> add space after 7,15
-	h.groupBuf[l-1] = ' '
 
 	// Output lines look like:
-	// 00000010  2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d  ./0123456789:;<=
-	// ^ offset                                                   ^ ASCII of line.
+	// 00000010: 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d  ./0123456789:;<=
+	// ^ offset  ^ a group with size=1                            ^ ASCII of line.
+	var j uint
 	for i := range data {
 		if h.used == 0 {
 			// At the beginning of a line we print the current
 			// offset in hex.
-
-			// San: this part the author convert `h.n` to binary digits and store in the first four elements of `buf`,
-			// then convert each of them to hexcimal and store in the rest elements of `buf`
 			h.buf[0] = byte(h.n >> 24)
 			h.buf[1] = byte(h.n >> 16)
 			h.buf[2] = byte(h.n >> 8)
 			h.buf[3] = byte(h.n)
 			hex.Encode(h.buf[4:], h.buf[:4])
-			h.buf[12] = ' '
+			h.buf[12] = ':'
 			h.buf[13] = ' '
-			_, err = h.w.Write(h.buf[4:])
+			_, err = h.w.Write(h.buf[4:14])
 			if err != nil {
 				return
 			}
+			h.buf[l-1] = ' '
 		}
-		var j uint
 		if h.littleEndian {
 			j = 2 * ((h.groupSize - 1) - (h.used % h.groupSize))
 		} else {
 			j = 2 * (h.used % h.groupSize)
 		}
-		hex.Encode(h.groupBuf[j:], data[i:i+1])
+		hex.Encode(h.buf[j:], data[i:i+1])
 
 		n++
 		h.used++
@@ -159,17 +163,17 @@ func (h *Dumper) Write(data []byte) (n int, err error) {
 		if i == len(data)-1 { // fill empty space (if needed) for the last group
 			if h.littleEndian {
 				for k := uint(0); k < j; k++ {
-					h.groupBuf[k] = ' '
+					h.buf[k] = ' '
 				}
 			} else {
-				for k := uint(len(h.groupBuf)) - 1; k > j+1; k-- {
-					h.groupBuf[k] = ' '
+				for k := uint(len(h.buf)) - 1; k > j+1; k-- {
+					h.buf[k] = ' '
 				}
 			}
 		}
 
 		if h.used%h.groupSize == 0 || i == len(data)-1 {
-			_, err = h.w.Write(h.groupBuf[:l])
+			_, err = h.w.Write(h.buf[:l])
 			if err != nil {
 				return
 			}
@@ -189,7 +193,7 @@ func (h *Dumper) Write(data []byte) (n int, err error) {
 }
 
 // Close pads empty space for the last line in case it has less than
-// `columns` bytes. See the comments in write() for the details of this format.
+// `columns` bytes. See the comments in Write() for the details of this format.
 func (h *Dumper) Close() (err error) {
 	if h.closed {
 		return
@@ -204,11 +208,11 @@ func (h *Dumper) Close() (err error) {
 	l := 2*h.groupSize + 1
 
 	for i := uint(0); i < l; i++ {
-		h.groupBuf[i] = ' '
+		h.buf[i] = ' '
 	}
 
 	for i := uint(0); i < groups; i++ {
-		_, err = h.w.Write(h.groupBuf[:l])
+		_, err = h.w.Write(h.buf[:l])
 		if err != nil {
 			return
 		}

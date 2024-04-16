@@ -19,7 +19,6 @@ var (
 )
 
 func main() {
-	kingpin.Version("0.0.1")
 	kingpin.Parse()
 
 	ioReader, err := os.Open(*filename)

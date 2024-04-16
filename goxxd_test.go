@@ -13,7 +13,7 @@ func TestDump(t *testing.T) {
 	length := -1
 	littleEndian := false
 
-	expected := "00000000  46 69 6c 65 20 31 20 63 6f 6e 74 65 6e 74 73     File 1 contents\n"
+	expected := "00000000: 46 69 6c 65 20 31 20 63 6f 6e 74 65 6e 74 73     File 1 contents\n"
 
 	result, err := Dump(reader, columns, group, seek, length, littleEndian)
 	if err != nil {
@@ -35,14 +35,14 @@ func TestDumpColumn(t *testing.T) {
 	length := -1
 	littleEndian := false
 
-	expected := `00000000  46 69 6c 65 20 31  File 1
-00000006  20 63 6f 6e 74 65   conte
-0000000c  6e 74 73 3a 20 6c  nts: l
-00000012  6f 72 65 6d 20 69  orem i
-00000018  70 73 75 6d 20 64  psum d
-0000001e  6f 6c 6f 72 20 73  olor s
-00000024  69 74 20 61 6d 65  it ame
-0000002a  74 0a              t.
+	expected := `00000000: 46 69 6c 65 20 31  File 1
+00000006: 20 63 6f 6e 74 65   conte
+0000000c: 6e 74 73 3a 20 6c  nts: l
+00000012: 6f 72 65 6d 20 69  orem i
+00000018: 70 73 75 6d 20 64  psum d
+0000001e: 6f 6c 6f 72 20 73  olor s
+00000024: 69 74 20 61 6d 65  it ame
+0000002a: 74 0a              t.
 `
 
 	result, err := Dump(reader, columns, group, seek, length, littleEndian)
@@ -65,8 +65,8 @@ func TestDumpLength(t *testing.T) {
 	length := 18
 	littleEndian := false
 
-	expected := `00000000  46 69 6c 65 20 31 20 63 6f 6e 74 65 6e 74 73 3a  File 1 contents:
-00000010  20 6c                                             l
+	expected := `00000000: 46 69 6c 65 20 31 20 63 6f 6e 74 65 6e 74 73 3a  File 1 contents:
+00000010: 20 6c                                             l
 `
 
 	result, err := Dump(reader, columns, group, seek, length, littleEndian)
@@ -89,9 +89,9 @@ func TestDumpGroup(t *testing.T) {
 	length := -1
 	littleEndian := false
 
-	expected := `00000000  46696c65 20312063 6f6e7465 6e74733a  File 1 contents:
-00000010  206c6f72 656d2069 7073756d 20646f6c   lorem ipsum dol
-00000020  6f722073 69742061 6d65740a           or sit amet.
+	expected := `00000000: 46696c65 20312063 6f6e7465 6e74733a  File 1 contents:
+00000010: 206c6f72 656d2069 7073756d 20646f6c   lorem ipsum dol
+00000020: 6f722073 69742061 6d65740a           or sit amet.
 `
 
 	result, err := Dump(reader, columns, group, seek, length, littleEndian)
@@ -114,9 +114,9 @@ func TestDumpLittleEndian(t *testing.T) {
 	length := -1
 	littleEndian := true
 
-	expected := `00000000  6946 656c 3120 6320 6e6f 6574 746e 3a73  File 1 contents:
-00000010  6c20 726f 6d65 6920 7370 6d75 6420 6c6f   lorem ipsum dol
-00000020  726f 7320 7469 6120 656d 0a74            or sit amet.
+	expected := `00000000: 6946 656c 3120 6320 6e6f 6574 746e 3a73  File 1 contents:
+00000010: 6c20 726f 6d65 6920 7370 6d75 6420 6c6f   lorem ipsum dol
+00000020: 726f 7320 7469 6120 656d 0a74            or sit amet.
 `
 
 	result, err := Dump(reader, columns, group, seek, length, littleEndian)
@@ -139,8 +139,8 @@ func TestDumpSeek(t *testing.T) {
 	length := -1
 	littleEndian := true
 
-	expected := `0000000c  6e 74 73 3a 20 6c 6f 72 65 6d 20 69 70 73 75 6d  nts: lorem ipsum
-0000001c  20 64 6f 6c 6f 72 20 73 69 74 20 61 6d 65 74 0a   dolor sit amet.
+	expected := `0000000c: 6e 74 73 3a 20 6c 6f 72 65 6d 20 69 70 73 75 6d  nts: lorem ipsum
+0000001c: 20 64 6f 6c 6f 72 20 73 69 74 20 61 6d 65 74 0a   dolor sit amet.
 `
 
 	result, err := Dump(reader, columns, group, seek, length, littleEndian)
@@ -155,9 +155,9 @@ func TestDumpSeek(t *testing.T) {
 }
 
 func TestRevertDump(t *testing.T) {
-	reader := strings.NewReader(`00000000  46 69 6c 65 20 31 20 63 6f 6e 74 65 6e 74 73 3a  File 1 contents:
-00000010  20 6c 6f 72 65 6d 20 69 70 73 75 6d 20 64 6f 6c   lorem ipsum dol
-00000020  6f 72 20 73 69 74 20 61 6d 65 74 0a              or sit amet.
+	reader := strings.NewReader(`00000000: 46 69 6c 65 20 31 20 63 6f 6e 74 65 6e 74 73 3a  File 1 contents:
+00000010: 20 6c 6f 72 65 6d 20 69 70 73 75 6d 20 64 6f 6c   lorem ipsum dol
+00000020: 6f 72 20 73 69 74 20 61 6d 65 74 0a              or sit amet.
 `)
 	expected := `File 1 contents: lorem ipsum dolor sit amet
 `
