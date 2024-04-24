@@ -1,6 +1,9 @@
 package goxxd
 
 import (
+	"bytes"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -170,5 +173,41 @@ func TestRevertDump(t *testing.T) {
 
 	if result != expected {
 		t.Errorf("expected [%s], got [%s]", expected, result)
+	}
+}
+
+func BenchmarkDumpStandard(b *testing.B) {
+	for _, size := range []int{256, 1024, 4096, 16384} {
+		src := bytes.Repeat([]byte{2, 3, 5, 7, 9, 11, 13, 17}, size/8)
+
+		b.Run(fmt.Sprintf("%v", size), func(b *testing.B) {
+			b.SetBytes(int64(size))
+			for i := 0; i < b.N; i++ {
+				hex.Dump(src)
+			}
+		})
+	}
+}
+
+func BenchmarkDump(b *testing.B) {
+	config := &DumperConfig{
+		Columns:      16,
+		GroupSize:    1,
+		LittleEndian: false,
+	}
+
+	for _, size := range []int{256, 1024, 4096, 16384} {
+		bts := bytes.Repeat([]byte{2, 3, 5, 7, 9, 11, 13, 17}, size/8)
+
+		b.Run(fmt.Sprintf("%v", size), func(b *testing.B) {
+			b.SetBytes(int64(size))
+			for i := 0; i < b.N; i++ {
+				_, err := dump(bts, config)
+				if err != nil {
+					b.Error(err)
+					return
+				}
+			}
+		})
 	}
 }

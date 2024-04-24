@@ -89,12 +89,12 @@ type Dumper struct {
 	w io.Writer
 	// rightChars has this format <space><16_characters><new_line>
 	rightChars [18]byte
-	// buf is used for write offset and group data.
-	// For offset, we utilize first 4 bytes in buf for hex conversion and store the result in the buf from 4th->14th byte.
-	// Therefore, the maximum bytes needed is 14.
+	// buf is used for offset and group data.
+	// For offset, we utilize the first 4 bytes in buf for hex conversion and store the result in buf from the 4th to the 14th byte.
+	// Therefore, the maximum number of bytes needed is 14.
 	// For group data, we need at most 32 bytes to store the largest group size allowed (16) plus one space at the end. So the
-	// maximum bytes in this case is 33.
-	// Overall, we choose 33 is the size of the byte buffer.
+	// maximum number of bytes in this case is 33.
+	// Overall, we choose 33 as the size of the byte buffer.
 	buf [33]byte
 
 	// used is number of bytes in the current line
